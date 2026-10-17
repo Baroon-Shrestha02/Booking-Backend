@@ -5,11 +5,8 @@ const playerStatsSchema = new mongoose.Schema(
   {
     gamesPlayed: { type: Number, default: 0, min: 0 },
     gamesHosted: { type: Number, default: 0, min: 0 },
-    goalsScored: { type: Number, default: 0, min: 0 },
     bookingsCompleted: { type: Number, default: 0, min: 0 },
     hoursPlayed: { type: Number, default: 0, min: 0 },
-    winRate: { type: Number, default: 0, min: 0, max: 1 },
-    favouriteSportIndex: { type: Number, default: 0, min: 0 },
   },
   { _id: false },
 );
@@ -66,7 +63,10 @@ const userSchema = new mongoose.Schema(
     profileImage: { type: profileImageSchema, default: () => ({}) },
     homeArea: { type: String, trim: true, default: null },
     bio: { type: String, trim: true, default: null },
-    favouriteSportIndices: { type: [Number], default: [] },
+    favouriteSports: {
+      type: [{ type: String, trim: true, lowercase: true }],
+      default: [],
+    },
     stats: { type: playerStatsSchema, default: () => ({}) },
     creditsBalance: { type: Number, default: 0, min: 0 },
     isVerified: { type: Boolean, default: false },

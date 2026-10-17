@@ -1,10 +1,13 @@
 import asyncHandler from "../../shared/utils/asyncHandler.js";
 import {
+  changePassword,
   getCurrentUser,
   loginUser,
   logout,
   refreshTokens,
   registerUser,
+  requestPasswordReset,
+  resetPassword,
   resendRegistrationOtp,
   verifyRegistration,
 } from "./auth.service.js";
@@ -82,6 +85,38 @@ export const currentUserController = asyncHandler(async (req, res) => {
   res.status(200).json({
     status: "success",
     message: "Current user retrieved successfully.",
+    data,
+  });
+});
+
+export const forgotPasswordController = asyncHandler(async (req, res) => {
+  const result = await requestPasswordReset({
+    ...req.body,
+    requestedIp: req.ip,
+  });
+  res.status(200).json({
+    status: "success",
+    message: result.message,
+  });
+});
+
+export const resetPasswordController = asyncHandler(async (req, res) => {
+  await resetPassword(req.body);
+  res.status(200).json({
+    status: "success",
+    message: "Password reset successfully. Please log in again.",
+  });
+});
+
+export const changePasswordController = asyncHandler(async (req, res) => {
+  const data = await changePassword({
+    userId: req.auth.userId,
+    ...req.body,
+    ...requestContext(req),
+  });
+  res.status(200).json({
+    status: "success",
+    message: "Password changed successfully.",
     data,
   });
 });

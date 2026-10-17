@@ -7,9 +7,16 @@ import {
 } from "../../shared/constants/index.js";
 import { createPublicId } from "../../shared/utils/ids.js";
 import { normalizeNepalPhone } from "../../shared/utils/phone.js";
-import { generateOtp, hashOtp, verifyOtpHash } from "../../shared/security/otp.js";
+import {
+  generateOtp,
+  hashOtp,
+  verifyOtpHash,
+} from "../../shared/security/otp.js";
 import { hashToken, safeEqual } from "../../shared/security/hash.js";
-import { hashPassword, verifyPassword } from "../../shared/security/passwords.js";
+import {
+  hashPassword,
+  verifyPassword,
+} from "../../shared/security/passwords.js";
 import {
   issueAccessToken,
   issueRefreshToken,
@@ -23,6 +30,7 @@ import {
   findRefreshSessionByPublicId,
   incrementOtpAttempts,
   invalidateOpenOtps,
+  revokeAllRefreshSessions,
   revokeRefreshSession,
   rotateRefreshSession,
 } from "./auth.repository.js";
@@ -34,11 +42,13 @@ import {
   findUserById,
   markUserLogin,
   updateUnverifiedRegistration,
+  updatePassword,
   verifyUser,
 } from "../users/user.repository.js";
 import otpSender from "./otpSender.js";
 
 const registrationPurpose = OTP_PURPOSES.REGISTRATION;
+const passwordResetPurpose = OTP_PURPOSES.PASSWORD_RESET;
 
 const invalidCredentials = () =>
   new AppError(
@@ -98,10 +108,10 @@ const createLoginSession = async ({ user, ip, userAgent }) => {
   return authData({ user, ...pair });
 };
 
-const assertCanRequestOtp = async (userId) => {
+const assertCanRequestOtp = async (userId, purpose) => {
   const previous = await findLatestOtp({
     userId,
-    purpose: registrationPurpose,
+    purpose,
   });
   if (!previous) return;
 
@@ -120,7 +130,7 @@ const assertCanRequestOtp = async (userId) => {
 };
 
 const sendRegistrationOtp = async ({ user, requestedIp }) => {
-  await assertCanRequestOtp(user._id);
+  await assertCanRequestOtp(user._id, registrationPurpose);
 
   const code = generateOtp();
   await invalidateOpenOtps({
@@ -213,7 +223,10 @@ export const registerUser = async ({
   }
 };
 
-export const resendRegistrationOtp = async ({ email: inputEmail, requestedIp }) => {
+export const resendRegistrationOtp = async ({
+  email: inputEmail,
+  requestedIp,
+}) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email);
   if (!user) {
@@ -290,7 +303,12 @@ export const verifyRegistration = async ({
   return createLoginSession({ user: verifiedUser, ip, userAgent });
 };
 
-export const loginUser = async ({ email: inputEmail, password, ip, userAgent }) => {
+export const loginUser = async ({
+  email: inputEmail,
+  password,
+  ip,
+  userAgent,
+}) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email, { includePassword: true });
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
@@ -372,6 +390,127 @@ export const getCurrentUser = async (userId) => {
   const user = await findUserById(userId);
   if (!user || !user.isVerified) return null;
   return publicUser(user);
+};
+
+const neutralPasswordResetMessage =
+  "If the account exists, a password reset code has been sent.";
+
+export const requestPasswordReset = async ({
+  email: inputEmail,
+  requestedIp,
+}) => {
+  const email = inputEmail.trim().toLowerCase();
+  const user = await findUserByEmail(email);
+  if (!user || !user.isVerified || user.status !== USER_STATUSES.ACTIVE) {
+    return { message: neutralPasswordResetMessage };
+  }
+
+  await assertCanRequestOtp(user._id, passwordResetPurpose);
+  const code = generateOtp();
+  await invalidateOpenOtps({
+    userId: user._id,
+    purpose: passwordResetPurpose,
+  });
+  const challenge = await createOtpChallenge({
+    user: user._id,
+    purpose: passwordResetPurpose,
+    destination: user.email,
+    codeHash: hashOtp({
+      subject: String(user._id),
+      purpose: passwordResetPurpose,
+      code,
+    }),
+    expiresAt: new Date(Date.now() + env.otpExpiresMinutes * 60 * 1000),
+    maxAttempts: env.otpMaxAttempts,
+    requestedIp,
+  });
+
+  try {
+    await otpSender.sendPasswordResetCode({
+      email: user.email,
+      name: user.name,
+      code,
+    });
+  } catch (error) {
+    challenge.consumedAt = new Date();
+    await challenge.save();
+    throw error;
+  }
+
+  return { message: neutralPasswordResetMessage };
+};
+
+export const resetPassword = async ({
+  email: inputEmail,
+  code,
+  newPassword,
+}) => {
+  const email = inputEmail.trim().toLowerCase();
+  const user = await findUserByEmail(email);
+  if (!user || !user.isVerified || user.status !== USER_STATUSES.ACTIVE) {
+    throw invalidOtp();
+  }
+
+  const challenge = await findLatestOtp({
+    userId: user._id,
+    purpose: passwordResetPurpose,
+    includeHash: true,
+  });
+  if (
+    !challenge ||
+    challenge.consumedAt ||
+    challenge.expiresAt <= new Date() ||
+    challenge.attempts >= challenge.maxAttempts
+  ) {
+    throw invalidOtp();
+  }
+
+  const matches = verifyOtpHash({
+    subject: String(user._id),
+    purpose: passwordResetPurpose,
+    code,
+    expectedHash: challenge.codeHash,
+  });
+  if (!matches) {
+    await incrementOtpAttempts(challenge._id);
+    throw invalidOtp();
+  }
+
+  const consumed = await consumeOtp(challenge._id);
+  if (!consumed) throw invalidOtp();
+
+  const passwordHash = await hashPassword(newPassword);
+  await updatePassword(user._id, passwordHash);
+  await revokeAllRefreshSessions(user._id);
+};
+
+export const changePassword = async ({
+  userId,
+  currentPassword,
+  newPassword,
+  ip,
+  userAgent,
+}) => {
+  const user = await findUserById(userId, { includePassword: true });
+  if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
+    throw new AppError(
+      401,
+      AUTH_ERROR_CODES.INVALID_CREDENTIALS,
+      "The current password is incorrect.",
+    );
+  }
+  if (await verifyPassword(newPassword, user.passwordHash)) {
+    throw new AppError(
+      422,
+      AUTH_ERROR_CODES.VALIDATION_FAILED,
+      "The new password must be different from the current password.",
+    );
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  const updatedUser = await updatePassword(user._id, passwordHash);
+  await revokeAllRefreshSessions(user._id);
+  return createLoginSession({ user: updatedUser, ip, userAgent });
 };
 
 export const logout = async (sessionId) => {

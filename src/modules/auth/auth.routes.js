@@ -7,18 +7,24 @@ import {
   otpVerifyLimiter,
 } from "../../middlewares/rateLimit.js";
 import {
+  changePasswordController,
+  forgotPasswordController,
   loginController,
   logoutController,
   refreshController,
   registerController,
+  resetPasswordController,
   resendRegistrationOtpController,
   currentUserController,
   verifyRegistrationController,
 } from "./auth.controller.js";
 import {
+  changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   refreshSchema,
   registerSchema,
+  resetPasswordSchema,
   resendRegistrationOtpSchema,
   verifyRegistrationSchema,
 } from "./auth.validation.js";
@@ -51,6 +57,24 @@ router.post(
 );
 router.post("/refresh", validateRequest(refreshSchema), refreshController);
 router.get("/me", authenticate, currentUserController);
+router.patch(
+  "/change-password",
+  authenticate,
+  validateRequest(changePasswordSchema),
+  changePasswordController,
+);
+router.post(
+  "/forgot-password",
+  otpRequestLimiter,
+  validateRequest(forgotPasswordSchema),
+  forgotPasswordController,
+);
+router.post(
+  "/reset-password",
+  otpVerifyLimiter,
+  validateRequest(resetPasswordSchema),
+  resetPasswordController,
+);
 router.post("/logout", authenticate, logoutController);
 
 export default router;

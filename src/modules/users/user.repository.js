@@ -28,10 +28,7 @@ export const createUnverifiedPlayer = ({ name, email, phone, passwordHash }) =>
     isVerified: false,
   });
 
-export const updateUnverifiedRegistration = (
-  userId,
-  { name, passwordHash },
-) =>
+export const updateUnverifiedRegistration = (userId, { name, passwordHash }) =>
   User.findOneAndUpdate(
     { _id: userId, isVerified: false },
     { $set: { name, passwordHash } },
@@ -71,4 +68,11 @@ export const updatePassword = (userId, passwordHash) =>
       },
     },
     { new: true },
+  );
+
+export const updateUserProfile = (userId, updates) =>
+  User.findByIdAndUpdate(
+    userId,
+    { $set: updates },
+    { new: true, runValidators: true },
   );

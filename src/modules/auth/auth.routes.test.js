@@ -47,3 +47,33 @@ test("OTP verification requires email and code", async () => {
   assert.equal(response.status, 422);
   assert.equal(response.body.status, "failed");
 });
+
+test("change-password requires authentication", async () => {
+  const response = await request(app)
+    .patch("/api/v1/auth/change-password")
+    .send({
+      currentPassword: "current-password",
+      newPassword: "new-strong-password",
+    });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.status, "failed");
+});
+
+test("forgot-password requires a valid email", async () => {
+  const response = await request(app)
+    .post("/api/v1/auth/forgot-password")
+    .send({ email: "not-an-email" });
+
+  assert.equal(response.status, 422);
+  assert.equal(response.body.status, "failed");
+});
+
+test("reset-password requires email, OTP, and a new password", async () => {
+  const response = await request(app)
+    .post("/api/v1/auth/reset-password")
+    .send({ email: "player@example.com", code: "123" });
+
+  assert.equal(response.status, 422);
+  assert.equal(response.body.status, "failed");
+});

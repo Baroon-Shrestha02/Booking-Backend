@@ -21,8 +21,11 @@ const globalErrorHandler = (error, _req, res, _next) => {
       ? error.details.issues[0]?.message
       : null;
   const body = {
-    status: "failed",
-    message: validationMessage || message,
+    error: {
+      code,
+      message: validationMessage || message,
+      ...(known && error.details ? { details: error.details } : {}),
+    },
   };
 
   res.status(status).json(body);

@@ -6,7 +6,7 @@ import app from "../../app.js";
 test("current-user endpoint requires authentication", async () => {
   const response = await request(app).get("/api/v1/auth/me");
   assert.equal(response.status, 401);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "unauthenticated");
 });
 
 test("registration rejects country-coded phone numbers", async () => {
@@ -20,8 +20,12 @@ test("registration rejects country-coded phone numbers", async () => {
     });
 
   assert.equal(response.status, 422);
-  assert.equal(response.body.status, "failed");
-  assert.equal(response.body.message, "Use exactly 10 digits without +977");
+  assert.equal(response.body.error.code, "validation_failed");
+  assert.equal(
+    response.body.error.message,
+    "Use exactly 10 digits without +977",
+  );
+  assert.equal(response.body.error.details.issues[0].path, "phone");
 });
 
 test("registration accepts the documented input shape before persistence", () => {
@@ -36,7 +40,7 @@ test("login requires email rather than phone", async () => {
   });
 
   assert.equal(response.status, 422);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "validation_failed");
 });
 
 test("OTP verification requires email and code", async () => {
@@ -45,7 +49,7 @@ test("OTP verification requires email and code", async () => {
     .send({ registrationToken: "old-token", code: "123456" });
 
   assert.equal(response.status, 422);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "validation_failed");
 });
 
 test("change-password requires authentication", async () => {
@@ -57,7 +61,7 @@ test("change-password requires authentication", async () => {
     });
 
   assert.equal(response.status, 401);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "unauthenticated");
 });
 
 test("forgot-password requires a valid email", async () => {
@@ -66,7 +70,7 @@ test("forgot-password requires a valid email", async () => {
     .send({ email: "not-an-email" });
 
   assert.equal(response.status, 422);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "validation_failed");
 });
 
 test("reset-password requires email, OTP, and a new password", async () => {
@@ -75,5 +79,5 @@ test("reset-password requires email, OTP, and a new password", async () => {
     .send({ email: "player@example.com", code: "123" });
 
   assert.equal(response.status, 422);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "validation_failed");
 });

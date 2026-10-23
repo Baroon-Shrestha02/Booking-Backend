@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { USER_ROLES, USER_STATUSES } from "../../shared/constants/index.js";
+import { createUserId } from "./user.ids.js";
 
 const playerStatsSchema = new mongoose.Schema(
   {
@@ -21,6 +22,14 @@ const profileImageSchema = new mongoose.Schema(
 
 const userSchema = new mongoose.Schema(
   {
+    userId: {
+      type: String,
+      required: true,
+      unique: true,
+      immutable: true,
+      index: true,
+      match: /^(ply|own)_[a-f0-9]{24}$/,
+    },
     phone: {
       type: String,
       required: true,
@@ -84,6 +93,10 @@ const userSchema = new mongoose.Schema(
     },
   },
 );
+
+userSchema.pre("validate", function assignUserId() {
+  if (!this.userId) this.userId = createUserId(this.role);
+});
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 export default User;

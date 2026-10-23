@@ -5,12 +5,14 @@ import {
   loginUser,
   logout,
   refreshTokens,
+  registerOwner,
   registerUser,
   requestPasswordReset,
   resetPassword,
   resendRegistrationOtp,
   verifyRegistration,
 } from "./auth.service.js";
+import { USER_ROLES } from "../../shared/constants/index.js";
 
 const requestContext = (req) => ({
   ip: req.ip,
@@ -28,6 +30,48 @@ export const registerController = asyncHandler(async (req, res) => {
     data: result,
   });
 });
+
+export const registerOwnerController = asyncHandler(async (req, res) => {
+  const result = await registerOwner({
+    ...req.body,
+    requestedIp: req.ip,
+  });
+  res.status(201).json({
+    status: "success",
+    message: "Owner registration successful. Verification code sent to email.",
+    data: result,
+  });
+});
+
+export const verifyOwnerRegistrationController = asyncHandler(
+  async (req, res) => {
+    const result = await verifyRegistration({
+      ...req.body,
+      ...requestContext(req),
+      expectedRole: USER_ROLES.OWNER,
+    });
+    res.status(200).json({
+      status: "success",
+      message: "Owner email verified successfully.",
+      data: result,
+    });
+  },
+);
+
+export const resendOwnerRegistrationOtpController = asyncHandler(
+  async (req, res) => {
+    const result = await resendRegistrationOtp({
+      ...req.body,
+      requestedIp: req.ip,
+      expectedRole: USER_ROLES.OWNER,
+    });
+    res.status(200).json({
+      status: "success",
+      message: "Verification code sent successfully.",
+      data: result,
+    });
+  },
+);
 
 export const verifyRegistrationController = asyncHandler(async (req, res) => {
   const result = await verifyRegistration({

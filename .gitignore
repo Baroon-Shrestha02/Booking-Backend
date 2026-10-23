@@ -21,3 +21,5 @@ uploads/
 /docs/cross-border/*
 !/docs/cross-border/FULFILLMENT_API.md
 /output/
+
+/docs

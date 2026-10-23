@@ -5,6 +5,7 @@ import { deleteProfileImage, uploadProfileImage } from "./profileImage.js";
 
 const profileData = (user) => ({
   _id: String(user._id),
+  userId: user.userId,
   name: user.name,
   email: user.email,
   phone: user.phone,

@@ -3,6 +3,7 @@ import AppError from "../../shared/errors/AppError.js";
 import {
   AUTH_ERROR_CODES,
   OTP_PURPOSES,
+  USER_ROLES,
   USER_STATUSES,
 } from "../../shared/constants/index.js";
 import { createPublicId } from "../../shared/utils/ids.js";
@@ -36,6 +37,7 @@ import {
 } from "./auth.repository.js";
 import {
   createUnverifiedPlayer,
+  createUnverifiedOwner,
   deleteUnverifiedUser,
   findUserByEmail,
   findUserByPhone,
@@ -69,6 +71,7 @@ const sessionExpiry = () =>
 
 const publicUser = (user) => ({
   _id: String(user._id),
+  userId: user.userId,
   name: user.name,
   email: user.email,
   phone: user.phone,
@@ -169,12 +172,13 @@ const sendRegistrationOtp = async ({ user, requestedIp }) => {
   };
 };
 
-export const registerUser = async ({
+const registerForRole = async ({
   name,
   email: inputEmail,
   phone: inputPhone,
   password,
   requestedIp,
+  role,
 }) => {
   const email = inputEmail.trim().toLowerCase();
   const phone = normalizeNepalPhone(inputPhone);
@@ -186,7 +190,8 @@ export const registerUser = async ({
     phoneOwner &&
     emailOwner &&
     String(phoneOwner._id) === String(emailOwner._id) &&
-    !phoneOwner.isVerified;
+    !phoneOwner.isVerified &&
+    phoneOwner.role === role;
   if ((phoneOwner || emailOwner) && !samePendingUser) {
     throw new AppError(
       409,
@@ -197,12 +202,14 @@ export const registerUser = async ({
 
   const passwordHash = await hashPassword(password);
   const isNewUser = !samePendingUser;
+  const createUnverifiedAccount =
+    role === USER_ROLES.OWNER ? createUnverifiedOwner : createUnverifiedPlayer;
   const user = samePendingUser
     ? await updateUnverifiedRegistration(phoneOwner._id, {
         name: name.trim(),
         passwordHash,
       })
-    : await createUnverifiedPlayer({
+    : await createUnverifiedAccount({
         name: name.trim(),
         email,
         phone,
@@ -213,6 +220,7 @@ export const registerUser = async ({
     const delivery = await sendRegistrationOtp({ user, requestedIp });
     return {
       _id: String(user._id),
+      userId: user.userId,
       email: user.email,
       verificationRequired: true,
       ...delivery,
@@ -223,13 +231,20 @@ export const registerUser = async ({
   }
 };
 
+export const registerUser = (input) =>
+  registerForRole({ ...input, role: USER_ROLES.PLAYER });
+
+export const registerOwner = (input) =>
+  registerForRole({ ...input, role: USER_ROLES.OWNER });
+
 export const resendRegistrationOtp = async ({
   email: inputEmail,
   requestedIp,
+  expectedRole = USER_ROLES.PLAYER,
 }) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email);
-  if (!user) {
+  if (!user || user.role !== expectedRole) {
     throw new AppError(
       404,
       AUTH_ERROR_CODES.NOT_FOUND,
@@ -251,10 +266,11 @@ export const verifyRegistration = async ({
   code,
   ip,
   userAgent,
+  expectedRole = USER_ROLES.PLAYER,
 }) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email);
-  if (!user) throw invalidOtp();
+  if (!user || user.role !== expectedRole) throw invalidOtp();
   if (user.isVerified) {
     throw new AppError(
       409,

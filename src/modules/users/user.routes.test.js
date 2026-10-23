@@ -6,7 +6,7 @@ import app from "../../app.js";
 test("full profile endpoint requires authentication", async () => {
   const response = await request(app).get("/api/v1/users/me");
   assert.equal(response.status, 401);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "unauthenticated");
 });
 
 test("profile update endpoint requires authentication", async () => {
@@ -14,5 +14,5 @@ test("profile update endpoint requires authentication", async () => {
     .patch("/api/v1/users/me")
     .send({ name: "Updated Player" });
   assert.equal(response.status, 401);
-  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.error.code, "unauthenticated");
 });

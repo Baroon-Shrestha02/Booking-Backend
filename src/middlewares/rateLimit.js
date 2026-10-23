@@ -1,4 +1,5 @@
 import { rateLimit } from "express-rate-limit";
+import { AUTH_ERROR_CODES } from "../shared/constants/index.js";
 
 const createLimiter = ({ windowMs, limit, message }) =>
   rateLimit({
@@ -8,8 +9,10 @@ const createLimiter = ({ windowMs, limit, message }) =>
     legacyHeaders: false,
     handler: (_req, res) => {
       res.status(429).json({
-        status: "failed",
-        message,
+        error: {
+          code: AUTH_ERROR_CODES.RATE_LIMITED,
+          message,
+        },
       });
     },
   });

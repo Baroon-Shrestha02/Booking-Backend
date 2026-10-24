@@ -28,11 +28,13 @@ const userSchema = new mongoose.Schema(
       unique: true,
       immutable: true,
       index: true,
-      match: /^(ply|own)_[a-f0-9]{24}$/,
+      match: /^(ply|own|adm)_[a-f0-9]{24}$/,
     },
     phone: {
       type: String,
-      required: true,
+      required() {
+        return this.role !== USER_ROLES.ADMIN;
+      },
       unique: true,
       immutable: true,
       trim: true,

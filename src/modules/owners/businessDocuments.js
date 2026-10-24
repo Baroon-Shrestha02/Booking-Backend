@@ -50,6 +50,29 @@ export const deleteBusinessDocument = async (publicId) => {
   });
 };
 
+const documentFormats = Object.freeze({
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+});
+
+export const createBusinessDocumentReviewUrl = ({ publicId, mimeType }) => {
+  if (!publicId || !isCloudinaryConfigured()) return null;
+
+  return cloudinary.utils.private_download_url(
+    publicId,
+    documentFormats[mimeType],
+    {
+      resource_type: "image",
+      type: "authenticated",
+      expires_at: Math.floor(Date.now() / 1000) + 10 * 60,
+    },
+  );
+};
+
 export const uploadBusinessLogo = ({ file, ownerId }) => {
   if (!isCloudinaryConfigured()) {
     throw new AppError(

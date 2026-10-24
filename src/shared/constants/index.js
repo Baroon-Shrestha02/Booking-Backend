@@ -1,6 +1,7 @@
 export const USER_ROLES = Object.freeze({
   PLAYER: "player",
   OWNER: "owner",
+  ADMIN: "admin",
 });
 
 export const USER_STATUSES = Object.freeze({
@@ -14,6 +15,24 @@ export const BUSINESS_VERIFICATION_STATUSES = Object.freeze({
   CHANGES_REQUESTED: "changes_requested",
   APPROVED: "approved",
   REJECTED: "rejected",
+});
+
+export const VENUE_STATUSES = Object.freeze({
+  DRAFT: "draft",
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+  SUSPENDED: "suspended",
+});
+
+export const VENUE_TYPES = Object.freeze({
+  FUTSAL: "futsal",
+  BASKETBALL: "basketball",
+  BADMINTON: "badminton",
+});
+
+export const VENUE_CLOSURE_TYPES = Object.freeze({
+  SINGLE_DAY: "single_day",
+  DATE_RANGE: "date_range",
 });
 
 export const OTP_PURPOSES = Object.freeze({

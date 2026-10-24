@@ -10,3 +10,7 @@ test("player public IDs use the ply prefix", () => {
 test("owner public IDs use the own prefix", () => {
   assert.match(createUserId(USER_ROLES.OWNER), /^own_[a-f0-9]{24}$/);
 });
+
+test("admin public IDs use the adm prefix", () => {
+  assert.match(createUserId(USER_ROLES.ADMIN), /^adm_[a-f0-9]{24}$/);
+});

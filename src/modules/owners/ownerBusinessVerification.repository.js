@@ -22,3 +22,29 @@ export const updateSubmittedBusinessVerification = (ownerId, updates) =>
     { $set: updates },
     { new: true, runValidators: true },
   ).select("+panVatImage +taxClearanceImage");
+
+const adminVerificationQuery = (query) =>
+  query
+    .select("+panVatImage +taxClearanceImage")
+    .populate("owner", "userId name email phone")
+    .populate("reviewedBy", "userId name email");
+
+export const findAllBusinessVerificationsForAdmin = () =>
+  adminVerificationQuery(
+    OwnerBusinessVerification.find().sort({ submittedAt: -1 }),
+  );
+
+export const findBusinessVerificationByPublicId = (verificationId) =>
+  adminVerificationQuery(OwnerBusinessVerification.findOne({ verificationId }));
+
+export const reviewSubmittedBusinessVerification = (verificationId, updates) =>
+  adminVerificationQuery(
+    OwnerBusinessVerification.findOneAndUpdate(
+      {
+        verificationId,
+        status: BUSINESS_VERIFICATION_STATUSES.SUBMITTED,
+      },
+      { $set: updates },
+      { new: true, runValidators: true },
+    ),
+  );

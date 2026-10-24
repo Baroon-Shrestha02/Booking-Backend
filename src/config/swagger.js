@@ -41,6 +41,7 @@ const jsonBody = (schemaName) => ({
 const bearerSecurity = [{ bearerAuth: [] }];
 const objectIdExample = "507f1f77bcf86cd799439011";
 const userIdExample = "ply_0123456789abcdef01234567";
+const adminIdExample = "adm_0123456789abcdef01234567";
 
 const swaggerDocument = {
   openapi: "3.1.0",
@@ -48,7 +49,7 @@ const swaggerDocument = {
     title: "KhelYard API",
     version: "0.1.0",
     description:
-      "Current backend contract for health checks, player and owner authentication, user profiles, and owner business verification.",
+      "Current backend contract for health checks, authentication, user profiles, owner business verification, and admin review.",
   },
   servers: [{ url: "/", description: "Current server" }],
   tags: [
@@ -57,6 +58,15 @@ const swaggerDocument = {
       name: "Authentication",
       description:
         "Email/password authentication, email OTP verification, and refresh-token rotation.",
+    },
+    {
+      name: "Admin Authentication",
+      description:
+        "Authentication for seeded administrators. Login uses email and password; password reset uses an email OTP.",
+    },
+    {
+      name: "Admin",
+      description: "Administrator-only business-verification review operations.",
     },
     { name: "Users", description: "Authenticated user profile operations." },
     {
@@ -324,6 +334,168 @@ const swaggerDocument = {
         },
       },
     },
+    "/api/v1/admin-auth/login": {
+      post: {
+        tags: ["Admin Authentication"],
+        summary: "Log in as a seeded admin",
+        description:
+          "Authenticates an existing admin with email and password. Admin login does not require an OTP.",
+        operationId: "loginAdmin",
+        requestBody: jsonBody("LoginRequest"),
+        responses: {
+          200: success("Admin login successful.", {
+            $ref: "#/components/schemas/AdminAuthData",
+          }),
+          401: error("The credentials are incorrect."),
+          403: error("The admin account is inactive."),
+          422: error("The request contains invalid values."),
+          429: error("Login attempts are temporarily rate limited."),
+        },
+      },
+    },
+    "/api/v1/admin-auth/refresh": {
+      post: {
+        tags: ["Admin Authentication"],
+        summary: "Rotate admin authentication tokens",
+        operationId: "refreshAdminTokens",
+        requestBody: jsonBody("RefreshRequest"),
+        responses: {
+          200: success("Tokens refreshed successfully.", {
+            $ref: "#/components/schemas/AdminAuthData",
+          }),
+          401: error("The token or admin refresh session is invalid."),
+          422: error("A refresh token is required."),
+        },
+      },
+    },
+    "/api/v1/admin-auth/me": {
+      get: {
+        tags: ["Admin Authentication"],
+        summary: "Get the authenticated admin",
+        operationId: "getCurrentAdmin",
+        security: bearerSecurity,
+        responses: {
+          200: success("Current admin retrieved.", {
+            $ref: "#/components/schemas/AdminUser",
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The authenticated account is not an admin."),
+        },
+      },
+    },
+    "/api/v1/admin-auth/change-password": {
+      patch: {
+        tags: ["Admin Authentication"],
+        summary: "Change the logged-in admin password",
+        description:
+          "Revokes previous refresh sessions and returns a new admin token pair.",
+        operationId: "changeAdminPassword",
+        security: bearerSecurity,
+        requestBody: jsonBody("ChangePasswordRequest"),
+        responses: {
+          200: success("Password changed successfully.", {
+            $ref: "#/components/schemas/AdminAuthData",
+          }),
+          401: error("Authentication failed or the current password is wrong."),
+          403: error("The authenticated account is not an admin."),
+          422: error("The new password is invalid or unchanged."),
+        },
+      },
+    },
+    "/api/v1/admin-auth/forgot-password": {
+      post: {
+        tags: ["Admin Authentication"],
+        summary: "Request an admin password-reset OTP",
+        description:
+          "Sends an email OTP only for an active seeded admin and always returns a neutral response.",
+        operationId: "forgotAdminPassword",
+        requestBody: jsonBody("EmailRequest"),
+        responses: {
+          200: success("Password-reset request accepted."),
+          422: error("The email is invalid."),
+          429: error("OTP requests are temporarily rate limited."),
+          503: error("Email delivery is unavailable."),
+        },
+      },
+    },
+    "/api/v1/admin-auth/reset-password": {
+      post: {
+        tags: ["Admin Authentication"],
+        summary: "Reset an admin password with an email OTP",
+        description:
+          "Consumes the reset OTP and revokes all existing admin refresh sessions.",
+        operationId: "resetAdminPassword",
+        requestBody: jsonBody("ResetPasswordRequest"),
+        responses: {
+          200: success("Password reset successfully."),
+          422: error("The request or OTP is invalid."),
+          429: error("Verification attempts are temporarily rate limited."),
+        },
+      },
+    },
+    "/api/v1/admin-auth/logout": {
+      post: {
+        tags: ["Admin Authentication"],
+        summary: "Log out the current admin session",
+        operationId: "logoutAdmin",
+        security: bearerSecurity,
+        responses: {
+          200: success("Logged out successfully."),
+          401: error("A valid active access token is required."),
+          403: error("The authenticated account is not an admin."),
+        },
+      },
+    },
+    "/api/v1/admin/business-verifications": {
+      get: {
+        tags: ["Admin"],
+        summary: "List every business-verification submission",
+        description:
+          "Returns all submissions newest first, including owner details, private-document metadata, and short-lived Cloudinary review URLs when Cloudinary is configured.",
+        operationId: "listBusinessVerificationsForAdmin",
+        security: bearerSecurity,
+        responses: {
+          200: success("Business-verification submissions retrieved.", {
+            $ref: "#/components/schemas/AdminBusinessVerificationList",
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The authenticated account is not an admin."),
+        },
+      },
+    },
+    "/api/v1/admin/business-verifications/{verificationId}": {
+      patch: {
+        tags: ["Admin"],
+        summary: "Approve or reject a submitted business verification",
+        description:
+          "Only a record currently in submitted status can be reviewed. Rejection requires a review note, and the decision cannot be applied twice.",
+        operationId: "reviewBusinessVerification",
+        security: bearerSecurity,
+        parameters: [
+          {
+            in: "path",
+            name: "verificationId",
+            required: true,
+            schema: {
+              type: "string",
+              pattern: "^bvr_[a-f0-9]{24}$",
+            },
+            example: "bvr_0123456789abcdef01234567",
+          },
+        ],
+        requestBody: jsonBody("BusinessVerificationReviewRequest"),
+        responses: {
+          200: success("Business-verification decision saved.", {
+            $ref: "#/components/schemas/AdminBusinessVerification",
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The authenticated account is not an admin."),
+          404: error("The business verification does not exist."),
+          409: error("The submission has already left submitted status."),
+          422: error("The verification ID or decision payload is invalid."),
+        },
+      },
+    },
     "/api/v1/users/me": {
       get: {
         tags: ["Users"],
@@ -523,7 +695,6 @@ const swaggerDocument = {
           "userId",
           "name",
           "email",
-          "phone",
           "profileImage",
           "role",
           "status",
@@ -533,7 +704,7 @@ const swaggerDocument = {
           _id: { type: "string", example: objectIdExample },
           userId: {
             type: "string",
-            pattern: "^(ply|own)_[a-f0-9]{24}$",
+            pattern: "^(ply|own|adm)_[a-f0-9]{24}$",
             example: userIdExample,
           },
           name: {
@@ -555,7 +726,7 @@ const swaggerDocument = {
           profileImage: { $ref: "#/components/schemas/ProfileImage" },
           role: {
             type: "string",
-            enum: ["player", "owner"],
+            enum: ["player", "owner", "admin"],
             example: "player",
           },
           status: {
@@ -574,6 +745,51 @@ const swaggerDocument = {
       AuthData: {
         allOf: [
           { $ref: "#/components/schemas/PublicUser" },
+          {
+            type: "object",
+            required: ["accessToken", "refreshToken"],
+            properties: {
+              accessToken: { type: "string", example: "<access-jwt>" },
+              refreshToken: { type: "string", example: "<refresh-jwt>" },
+            },
+          },
+        ],
+      },
+      AdminUser: {
+        type: "object",
+        required: [
+          "_id",
+          "userId",
+          "name",
+          "email",
+          "profileImage",
+          "role",
+          "status",
+          "isVerified",
+        ],
+        properties: {
+          _id: { type: "string", example: objectIdExample },
+          userId: {
+            type: "string",
+            pattern: "^adm_[a-f0-9]{24}$",
+            example: adminIdExample,
+          },
+          name: { type: "string", example: "KhelYard Admin" },
+          email: {
+            type: "string",
+            format: "email",
+            example: "admin@khelyard.com",
+          },
+          profileImage: { $ref: "#/components/schemas/ProfileImage" },
+          role: { type: "string", const: "admin" },
+          status: { type: "string", enum: ["active", "suspended"] },
+          isVerified: { type: "boolean", const: true },
+          verifiedAt: { type: ["string", "null"], format: "date-time" },
+        },
+      },
+      AdminAuthData: {
+        allOf: [
+          { $ref: "#/components/schemas/AdminUser" },
           {
             type: "object",
             required: ["accessToken", "refreshToken"],
@@ -840,6 +1056,23 @@ const swaggerDocument = {
           uploadedAt: { type: "string", format: "date-time" },
         },
       },
+      AdminBusinessDocument: {
+        allOf: [
+          { $ref: "#/components/schemas/BusinessDocument" },
+          {
+            type: "object",
+            required: ["reviewUrl"],
+            properties: {
+              reviewUrl: {
+                type: ["string", "null"],
+                format: "uri",
+                description:
+                  "Short-lived authenticated Cloudinary download URL. Null when Cloudinary is not configured.",
+              },
+            },
+          },
+        ],
+      },
       BusinessVerification: {
         type: "object",
         required: [
@@ -896,6 +1129,110 @@ const swaggerDocument = {
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
+      },
+      VerificationOwnerSummary: {
+        type: "object",
+        required: ["_id", "userId", "name", "email"],
+        properties: {
+          _id: { type: "string", example: objectIdExample },
+          userId: {
+            type: "string",
+            pattern: "^own_[a-f0-9]{24}$",
+            example: "own_0123456789abcdef01234567",
+          },
+          name: { type: "string", example: "Venue Owner" },
+          email: {
+            type: "string",
+            format: "email",
+            example: "owner@example.com",
+          },
+          phone: {
+            type: "string",
+            pattern: "^(97|98)\\d{8}$",
+            example: "9818738923",
+          },
+        },
+      },
+      VerificationReviewerSummary: {
+        type: "object",
+        required: ["_id", "userId", "name", "email"],
+        properties: {
+          _id: { type: "string", example: objectIdExample },
+          userId: {
+            type: "string",
+            pattern: "^adm_[a-f0-9]{24}$",
+            example: adminIdExample,
+          },
+          name: { type: "string", example: "KhelYard Admin" },
+          email: {
+            type: "string",
+            format: "email",
+            example: "admin@khelyard.com",
+          },
+        },
+      },
+      AdminBusinessVerification: {
+        allOf: [
+          { $ref: "#/components/schemas/BusinessVerification" },
+          {
+            type: "object",
+            required: ["owner", "reviewedBy"],
+            properties: {
+              owner: {
+                $ref: "#/components/schemas/VerificationOwnerSummary",
+              },
+              reviewedBy: {
+                oneOf: [
+                  {
+                    $ref: "#/components/schemas/VerificationReviewerSummary",
+                  },
+                  { type: "null" },
+                ],
+              },
+              panVatImage: {
+                $ref: "#/components/schemas/AdminBusinessDocument",
+              },
+              taxClearanceImage: {
+                $ref: "#/components/schemas/AdminBusinessDocument",
+              },
+            },
+          },
+        ],
+      },
+      AdminBusinessVerificationList: {
+        type: "object",
+        required: ["submissions", "total"],
+        properties: {
+          submissions: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/AdminBusinessVerification",
+            },
+          },
+          total: { type: "integer", minimum: 0, example: 1 },
+        },
+      },
+      BusinessVerificationReviewRequest: {
+        oneOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["status"],
+            properties: {
+              status: { type: "string", const: "approved" },
+              reviewNotes: { type: "string", minLength: 1, maxLength: 1000 },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["status", "reviewNotes"],
+            properties: {
+              status: { type: "string", const: "rejected" },
+              reviewNotes: { type: "string", minLength: 1, maxLength: 1000 },
+            },
+          },
+        ],
       },
       BusinessVerificationSubmission: {
         type: "object",

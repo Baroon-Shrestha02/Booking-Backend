@@ -4,6 +4,7 @@ import { createPublicId } from "../../shared/utils/ids.js";
 const USER_ID_PREFIXES = Object.freeze({
   [USER_ROLES.PLAYER]: "ply",
   [USER_ROLES.OWNER]: "own",
+  [USER_ROLES.ADMIN]: "adm",
 });
 
 export const createUserId = (role) => {

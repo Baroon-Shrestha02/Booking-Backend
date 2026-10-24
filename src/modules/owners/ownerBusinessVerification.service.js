@@ -6,12 +6,16 @@ import {
 } from "../../shared/constants/index.js";
 import {
   createBusinessVerification,
+  findAllBusinessVerificationsForAdmin,
+  findBusinessVerificationByPublicId,
   findBusinessVerificationByOwner,
+  reviewSubmittedBusinessVerification,
   updateSubmittedBusinessVerification,
 } from "./ownerBusinessVerification.repository.js";
 import {
   deleteBusinessDocument,
   deleteBusinessLogo,
+  createBusinessDocumentReviewUrl,
   uploadBusinessDocument,
   uploadBusinessLogo,
 } from "./businessDocuments.js";
@@ -45,6 +49,33 @@ const verificationData = (verification) => ({
   updatedAt: verification.updatedAt,
 });
 
+const accountData = (account) =>
+  account
+    ? {
+        _id: String(account._id),
+        userId: account.userId,
+        name: account.name,
+        email: account.email,
+        ...(account.phone ? { phone: account.phone } : {}),
+      }
+    : null;
+
+const adminDocumentData = (document) => {
+  if (!document) return undefined;
+  return {
+    ...documentData(document),
+    reviewUrl: createBusinessDocumentReviewUrl(document),
+  };
+};
+
+const adminVerificationData = (verification) => ({
+  ...verificationData(verification),
+  owner: accountData(verification.owner),
+  reviewedBy: accountData(verification.reviewedBy),
+  panVatImage: adminDocumentData(verification.panVatImage),
+  taxClearanceImage: adminDocumentData(verification.taxClearanceImage),
+});
+
 const requiredFile = (files, name) => files?.[name]?.[0] || null;
 
 const cleanupUploads = (uploads) =>
@@ -56,7 +87,11 @@ const cleanupUploads = (uploads) =>
     ),
   );
 
-export const submitBusinessVerification = async ({ ownerId, fields, files }) => {
+export const submitBusinessVerification = async ({
+  ownerId,
+  fields,
+  files,
+}) => {
   const existing = await findBusinessVerificationByOwner(ownerId);
   if (existing) {
     throw new AppError(
@@ -257,4 +292,50 @@ export const getBusinessVerification = async (ownerId) => {
     );
   }
   return verificationData(verification);
+};
+
+export const getAllBusinessVerificationsForAdmin = async () => {
+  const submissions = await findAllBusinessVerificationsForAdmin();
+  return {
+    submissions: submissions.map(adminVerificationData),
+    total: submissions.length,
+  };
+};
+
+export const reviewBusinessVerification = async ({
+  verificationId,
+  adminId,
+  status,
+  reviewNotes,
+}) => {
+  const reviewedAt = new Date();
+  const verification = await reviewSubmittedBusinessVerification(
+    verificationId,
+    {
+      status,
+      reviewNotes: reviewNotes || null,
+      reviewedBy: adminId,
+      reviewedAt,
+      approvedAt:
+        status === BUSINESS_VERIFICATION_STATUSES.APPROVED ? reviewedAt : null,
+    },
+  );
+
+  if (verification) return adminVerificationData(verification);
+
+  const existing = await findBusinessVerificationByPublicId(verificationId);
+  if (!existing) {
+    throw new AppError(
+      404,
+      OWNER_ERROR_CODES.BUSINESS_VERIFICATION_NOT_FOUND,
+      "Business verification was not found.",
+    );
+  }
+
+  throw new AppError(
+    409,
+    OWNER_ERROR_CODES.BUSINESS_VERIFICATION_LOCKED,
+    "Only a submitted business verification can be approved or rejected.",
+    { status: existing.status },
+  );
 };

@@ -18,6 +18,15 @@ test("OpenAPI document describes every current public route", () => {
     "/api/v1/auth/forgot-password",
     "/api/v1/auth/reset-password",
     "/api/v1/auth/logout",
+    "/api/v1/admin-auth/login",
+    "/api/v1/admin-auth/refresh",
+    "/api/v1/admin-auth/me",
+    "/api/v1/admin-auth/change-password",
+    "/api/v1/admin-auth/forgot-password",
+    "/api/v1/admin-auth/reset-password",
+    "/api/v1/admin-auth/logout",
+    "/api/v1/admin/business-verifications",
+    "/api/v1/admin/business-verifications/{verificationId}",
     "/api/v1/users/me",
     "/api/v1/owner-auth/register",
     "/api/v1/owner-auth/verify-registration",
@@ -39,6 +48,8 @@ test("OpenAPI JSON is publicly available", async () => {
   assert.equal(response.body.info.title, "KhelYard API");
   assert.ok(response.body.paths["/api/v1/users/me"]);
   assert.ok(response.body.paths["/api/v1/owner-auth/register"]);
+  assert.ok(response.body.paths["/api/v1/admin-auth/login"]);
+  assert.ok(response.body.paths["/api/v1/admin/business-verifications"]);
   assert.ok(
     response.body.paths["/api/v1/owners/me/business-verification"],
   );

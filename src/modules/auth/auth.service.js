@@ -319,15 +319,25 @@ export const verifyRegistration = async ({
   return createLoginSession({ user: verifiedUser, ip, userAgent });
 };
 
-export const loginUser = async ({
+const userAuthRoles = [USER_ROLES.PLAYER, USER_ROLES.OWNER];
+
+const loginForRoles = async ({
   email: inputEmail,
   password,
   ip,
   userAgent,
+  allowedRoles,
 }) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email, { includePassword: true });
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+  const passwordMatches = user
+    ? await verifyPassword(password, user.passwordHash)
+    : false;
+  if (
+    !user ||
+    !allowedRoles.includes(user.role) ||
+    !passwordMatches
+  ) {
     throw invalidCredentials();
   }
   if (!user.isVerified) {
@@ -349,7 +359,16 @@ export const loginUser = async ({
   return createLoginSession({ user: updatedUser, ip, userAgent });
 };
 
-export const refreshTokens = async ({ refreshToken }) => {
+export const loginUser = (input) =>
+  loginForRoles({ ...input, allowedRoles: userAuthRoles });
+
+export const loginAdmin = (input) =>
+  loginForRoles({ ...input, allowedRoles: [USER_ROLES.ADMIN] });
+
+export const refreshTokens = async ({
+  refreshToken,
+  allowedRoles = userAuthRoles,
+}) => {
   const claims = verifyRefreshToken(refreshToken);
   const session = await findRefreshSessionByPublicId(claims.sid, {
     includeHash: true,
@@ -374,6 +393,7 @@ export const refreshTokens = async ({ refreshToken }) => {
   const user = await findUserById(claims.sub);
   if (
     !user ||
+    !allowedRoles.includes(user.role) ||
     !user.isVerified ||
     user.status !== USER_STATUSES.ACTIVE ||
     String(user._id) !== String(session.user)
@@ -402,9 +422,14 @@ export const refreshTokens = async ({ refreshToken }) => {
   return authData({ user, ...pair });
 };
 
-export const getCurrentUser = async (userId) => {
+export const getCurrentUser = async (
+  userId,
+  allowedRoles = userAuthRoles,
+) => {
   const user = await findUserById(userId);
-  if (!user || !user.isVerified) return null;
+  if (!user || !allowedRoles.includes(user.role) || !user.isVerified) {
+    return null;
+  }
   return publicUser(user);
 };
 
@@ -414,10 +439,16 @@ const neutralPasswordResetMessage =
 export const requestPasswordReset = async ({
   email: inputEmail,
   requestedIp,
+  allowedRoles = userAuthRoles,
 }) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email);
-  if (!user || !user.isVerified || user.status !== USER_STATUSES.ACTIVE) {
+  if (
+    !user ||
+    !allowedRoles.includes(user.role) ||
+    !user.isVerified ||
+    user.status !== USER_STATUSES.ACTIVE
+  ) {
     return { message: neutralPasswordResetMessage };
   }
 
@@ -460,10 +491,16 @@ export const resetPassword = async ({
   email: inputEmail,
   code,
   newPassword,
+  allowedRoles = userAuthRoles,
 }) => {
   const email = inputEmail.trim().toLowerCase();
   const user = await findUserByEmail(email);
-  if (!user || !user.isVerified || user.status !== USER_STATUSES.ACTIVE) {
+  if (
+    !user ||
+    !allowedRoles.includes(user.role) ||
+    !user.isVerified ||
+    user.status !== USER_STATUSES.ACTIVE
+  ) {
     throw invalidOtp();
   }
 
@@ -506,9 +543,14 @@ export const changePassword = async ({
   newPassword,
   ip,
   userAgent,
+  allowedRoles = userAuthRoles,
 }) => {
   const user = await findUserById(userId, { includePassword: true });
-  if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
+  if (
+    !user ||
+    !allowedRoles.includes(user.role) ||
+    !(await verifyPassword(currentPassword, user.passwordHash))
+  ) {
     throw new AppError(
       401,
       AUTH_ERROR_CODES.INVALID_CREDENTIALS,

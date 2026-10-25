@@ -4,6 +4,7 @@ import requireRole from "../../middlewares/requireRole.js";
 import validateRequest from "../../middlewares/validateRequest.js";
 import { USER_ROLES } from "../../shared/constants/index.js";
 import businessDocumentsUpload from "./businessDocuments.middleware.js";
+import ownerVenueRoutes from "../venues/ownerVenue.routes.js";
 import {
   getBusinessVerificationController,
   submitBusinessVerificationController,
@@ -17,6 +18,8 @@ import {
 const router = Router();
 
 router.use(authenticate, requireRole(USER_ROLES.OWNER));
+
+router.use("/me/venues", ownerVenueRoutes);
 
 router
   .route("/me/business-verification")

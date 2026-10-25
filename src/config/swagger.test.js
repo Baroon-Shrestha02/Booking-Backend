@@ -32,6 +32,10 @@ test("OpenAPI document describes every current public route", () => {
     "/api/v1/owner-auth/verify-registration",
     "/api/v1/owner-auth/resend-registration-otp",
     "/api/v1/owners/me/business-verification",
+    "/api/v1/owners/me/venues",
+    "/api/v1/owners/me/venues/{venueId}",
+    "/api/v1/venues",
+    "/api/v1/venues/{venueId}",
   ];
 
   assert.equal(swaggerDocument.openapi, "3.1.0");
@@ -53,6 +57,8 @@ test("OpenAPI JSON is publicly available", async () => {
   assert.ok(
     response.body.paths["/api/v1/owners/me/business-verification"],
   );
+  assert.ok(response.body.paths["/api/v1/owners/me/venues"]);
+  assert.ok(response.body.paths["/api/v1/venues"]);
 });
 
 test("Swagger UI is publicly available", async () => {

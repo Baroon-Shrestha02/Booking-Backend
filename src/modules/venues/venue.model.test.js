@@ -24,9 +24,6 @@ const validVenue = () => ({
   groundCount: 3,
   location: {
     address: "New Baneshwor",
-    area: "Baneshwor",
-    city: "Kathmandu",
-    landmark: "Near Baneshwor Chowk",
     coordinates: {
       type: "Point",
       coordinates: [85.3432, 27.6915],

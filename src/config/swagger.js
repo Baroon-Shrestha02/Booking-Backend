@@ -73,6 +73,10 @@ const swaggerDocument = {
       name: "Owners",
       description: "Owner registration and business-verification operations.",
     },
+    {
+      name: "Venues",
+      description: "Owner venue management and public active-venue discovery.",
+    },
   ],
   paths: {
     "/health/live": {
@@ -619,8 +623,145 @@ const swaggerDocument = {
         },
       },
     },
+    "/api/v1/owners/me/venues": {
+      get: {
+        tags: ["Venues"],
+        summary: "List the authenticated owner's venues",
+        operationId: "listOwnerVenues",
+        security: bearerSecurity,
+        responses: {
+          200: success("Owner venues retrieved successfully.", {
+            type: "array",
+            items: { $ref: "#/components/schemas/Venue" },
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The authenticated account is not an owner."),
+        },
+      },
+      post: {
+        tags: ["Venues"],
+        summary: "Create a venue",
+        description:
+          "Requires an approved owner business verification. New venues are active immediately. Submit 1-12 venue images. Nested multipart fields must contain JSON strings.",
+        operationId: "createOwnerVenue",
+        security: bearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: { $ref: "#/components/schemas/VenueCreateRequest" },
+            },
+          },
+        },
+        responses: {
+          201: success("Venue created successfully.", {
+            $ref: "#/components/schemas/Venue",
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The owner or business verification is not eligible."),
+          422: error("Venue fields or images are invalid."),
+          503: error("Cloudinary venue-image upload is unavailable."),
+        },
+      },
+    },
+    "/api/v1/owners/me/venues/{venueId}": {
+      get: {
+        tags: ["Venues"],
+        summary: "Get one venue owned by the authenticated owner",
+        operationId: "getOwnerVenue",
+        security: bearerSecurity,
+        parameters: [
+          { $ref: "#/components/parameters/VenueId" },
+        ],
+        responses: {
+          200: success("Venue retrieved successfully.", {
+            $ref: "#/components/schemas/Venue",
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The authenticated account is not an owner."),
+          404: error("The venue does not exist or belongs to another owner."),
+          422: error("The venue ID is invalid."),
+        },
+      },
+      patch: {
+        tags: ["Venues"],
+        summary: "Partially update an owned venue",
+        description:
+          "Only supplied fields change. Supplying images replaces the complete image set; the first image becomes the cover.",
+        operationId: "updateOwnerVenue",
+        security: bearerSecurity,
+        parameters: [
+          { $ref: "#/components/parameters/VenueId" },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/VenueUpdateJsonRequest" },
+            },
+            "multipart/form-data": {
+              schema: { $ref: "#/components/schemas/VenueUpdateRequest" },
+            },
+          },
+        },
+        responses: {
+          200: success("Venue updated successfully.", {
+            $ref: "#/components/schemas/Venue",
+          }),
+          401: error("A valid active access token is required."),
+          403: error("The owner or business verification is not eligible."),
+          404: error("The venue does not exist or belongs to another owner."),
+          422: error("The venue fields or images are invalid."),
+          503: error("Cloudinary venue-image upload is unavailable."),
+        },
+      },
+    },
+    "/api/v1/venues": {
+      get: {
+        tags: ["Venues"],
+        summary: "List active venues",
+        description:
+          "Publicly returns venues whose status is active. Slot-level availability is handled separately.",
+        operationId: "listAvailableVenues",
+        responses: {
+          200: success("Active venues retrieved successfully.", {
+            type: "array",
+            items: { $ref: "#/components/schemas/Venue" },
+          }),
+        },
+      },
+    },
+    "/api/v1/venues/{venueId}": {
+      get: {
+        tags: ["Venues"],
+        summary: "Get an active venue",
+        operationId: "getAvailableVenue",
+        parameters: [
+          { $ref: "#/components/parameters/VenueId" },
+        ],
+        responses: {
+          200: success("Active venue retrieved successfully.", {
+            $ref: "#/components/schemas/Venue",
+          }),
+          404: error("No active venue exists with this ID."),
+          422: error("The venue ID is invalid."),
+        },
+      },
+    },
   },
   components: {
+    parameters: {
+      VenueId: {
+        in: "path",
+        name: "venueId",
+        required: true,
+        schema: {
+          type: "string",
+          pattern: "^ven_[a-f0-9]{24}$",
+        },
+        example: "ven_0123456789abcdef01234567",
+      },
+    },
     securitySchemes: {
       bearerAuth: {
         type: "http",
@@ -1233,6 +1374,312 @@ const swaggerDocument = {
             },
           },
         ],
+      },
+      VenueImage: {
+        type: "object",
+        required: ["publicId", "publicUrl", "isCover", "sortOrder"],
+        properties: {
+          publicId: { type: "string" },
+          publicUrl: { type: "string", format: "uri" },
+          isCover: { type: "boolean" },
+          sortOrder: { type: "integer", minimum: 0 },
+        },
+      },
+      VenueLocation: {
+        type: "object",
+        required: ["address", "coordinates"],
+        properties: {
+          address: {
+            type: "string",
+            maxLength: 250,
+            example: "New Baneshwor, Kathmandu",
+            description: "Short display address selected or entered in the frontend.",
+          },
+          coordinates: {
+            type: "object",
+            required: ["coordinates"],
+            description:
+              "GeoJSON point selected using the frontend map. The array order is longitude, then latitude.",
+            properties: {
+              type: { type: "string", const: "Point" },
+              coordinates: {
+                type: "array",
+                minItems: 2,
+                maxItems: 2,
+                items: { type: "number" },
+                example: [85.3432, 27.6915],
+              },
+            },
+          },
+        },
+      },
+      VenueOperatingSchedule: {
+        type: "object",
+        properties: {
+          defaultHours: {
+            type: "object",
+            properties: {
+              opensAt: { type: "string", example: "08:00" },
+              closesAt: { type: "string", example: "21:00" },
+            },
+          },
+          dayOverrides: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                dayOfWeek: { type: "integer", minimum: 0, maximum: 6 },
+                isClosed: { type: "boolean" },
+                opensAt: { type: ["string", "null"] },
+                closesAt: { type: ["string", "null"] },
+              },
+            },
+          },
+        },
+      },
+      VenuePricing: {
+        type: "object",
+        required: ["periods"],
+        properties: {
+          currency: { type: "string", const: "NPR" },
+          weekendDays: {
+            type: "array",
+            items: { type: "integer", minimum: 0, maximum: 6 },
+            example: [6],
+          },
+          periods: {
+            type: "array",
+            minItems: 1,
+            maxItems: 12,
+            items: {
+              type: "object",
+              required: [
+                "name",
+                "startsAt",
+                "endsAt",
+                "weekdayPrice",
+                "weekendPrice",
+              ],
+              properties: {
+                name: { type: "string", example: "evening" },
+                startsAt: { type: "string", example: "17:00" },
+                endsAt: { type: "string", example: "21:00" },
+                weekdayPrice: { type: "number", minimum: 0, example: 2200 },
+                weekendPrice: { type: "number", minimum: 0, example: 2600 },
+              },
+            },
+          },
+        },
+      },
+      VenueClosure: {
+        oneOf: [
+          {
+            type: "object",
+            required: ["type", "date"],
+            properties: {
+              closureId: { type: "string", pattern: "^cls_[a-f0-9]{24}$" },
+              type: { type: "string", const: "single_day" },
+              date: { type: "string", format: "date" },
+              reason: { type: ["string", "null"] },
+            },
+          },
+          {
+            type: "object",
+            required: ["type", "startsOn", "endsOn"],
+            properties: {
+              closureId: { type: "string", pattern: "^cls_[a-f0-9]{24}$" },
+              type: { type: "string", const: "date_range" },
+              startsOn: { type: "string", format: "date" },
+              endsOn: { type: "string", format: "date" },
+              reason: { type: ["string", "null"] },
+            },
+          },
+        ],
+      },
+      Venue: {
+        type: "object",
+        required: [
+          "_id",
+          "venueId",
+          "name",
+          "description",
+          "venueType",
+          "images",
+          "groundCount",
+          "slotDurationMinutes",
+          "location",
+          "operatingSchedule",
+          "upcomingClosures",
+          "pastClosures",
+          "pricing",
+          "status",
+        ],
+        properties: {
+          _id: { type: "string", example: objectIdExample },
+          venueId: {
+            type: "string",
+            pattern: "^ven_[a-f0-9]{24}$",
+            example: "ven_0123456789abcdef01234567",
+          },
+          name: { type: "string", example: "KhelYard Futsal Arena" },
+          description: { type: "string" },
+          venueType: {
+            type: "string",
+            enum: ["futsal", "basketball", "badminton"],
+          },
+          images: {
+            type: "array",
+            items: { $ref: "#/components/schemas/VenueImage" },
+          },
+          groundCount: { type: "integer", minimum: 1, example: 3 },
+          slotDurationMinutes: { type: "integer", example: 60 },
+          location: { $ref: "#/components/schemas/VenueLocation" },
+          operatingSchedule: {
+            $ref: "#/components/schemas/VenueOperatingSchedule",
+          },
+          upcomingClosures: {
+            type: "array",
+            items: { $ref: "#/components/schemas/VenueClosure" },
+            description:
+              "Closures ending today or later, calculated using the Nepal date.",
+          },
+          pastClosures: {
+            type: "array",
+            items: { $ref: "#/components/schemas/VenueClosure" },
+            description:
+              "Closures whose single date or range end date has passed in Nepal.",
+          },
+          pricing: { $ref: "#/components/schemas/VenuePricing" },
+          amenities: { type: "array", items: { type: "string" } },
+          status: {
+            type: "string",
+            enum: ["draft", "active", "inactive", "suspended"],
+          },
+          availabilityStatus: {
+            type: "string",
+            enum: ["active", "closed"],
+            description:
+              "Computed for the current Nepal date from status and closures.",
+          },
+          closureReason: { type: ["string", "null"] },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+      },
+      VenueCreateRequest: {
+        type: "object",
+        required: [
+          "name",
+          "description",
+          "venueType",
+          "groundCount",
+          "slotDurationMinutes",
+          "location",
+          "pricing",
+          "images",
+        ],
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          venueType: {
+            type: "string",
+            enum: ["futsal", "basketball", "badminton"],
+          },
+          groundCount: { type: "integer" },
+          slotDurationMinutes: { type: "integer" },
+          location: {
+            type: "string",
+            description: "JSON string matching VenueLocation.",
+          },
+          operatingSchedule: {
+            type: "string",
+            description: "Optional JSON string matching VenueOperatingSchedule.",
+          },
+          closures: {
+            type: "string",
+            description: "Optional JSON array string of VenueClosure values.",
+          },
+          pricing: {
+            type: "string",
+            description: "JSON string matching VenuePricing.",
+          },
+          amenities: {
+            type: "string",
+            description: "Optional JSON string array.",
+          },
+          images: {
+            type: "array",
+            minItems: 1,
+            maxItems: 12,
+            items: { type: "string", format: "binary" },
+          },
+        },
+      },
+      VenueUpdateRequest: {
+        type: "object",
+        minProperties: 1,
+        description:
+          "All fields are optional for PATCH. When provided, images replace the existing image set.",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          venueType: {
+            type: "string",
+            enum: ["futsal", "basketball", "badminton"],
+          },
+          groundCount: { type: "integer" },
+          slotDurationMinutes: { type: "integer" },
+          location: { type: "string", description: "VenueLocation JSON string." },
+          operatingSchedule: {
+            type: "string",
+            description: "VenueOperatingSchedule JSON string.",
+          },
+          closures: {
+            type: "string",
+            description: "JSON array string of VenueClosure values.",
+          },
+          pricing: { type: "string", description: "VenuePricing JSON string." },
+          amenities: { type: "string", description: "JSON string array." },
+          status: {
+            type: "string",
+            enum: ["draft", "active", "inactive"],
+          },
+          images: {
+            type: "array",
+            minItems: 1,
+            maxItems: 12,
+            items: { type: "string", format: "binary" },
+          },
+        },
+      },
+      VenueUpdateJsonRequest: {
+        type: "object",
+        minProperties: 1,
+        additionalProperties: false,
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          venueType: {
+            type: "string",
+            enum: ["futsal", "basketball", "badminton"],
+          },
+          groundCount: { type: "integer" },
+          slotDurationMinutes: { type: "integer" },
+          location: { $ref: "#/components/schemas/VenueLocation" },
+          operatingSchedule: {
+            $ref: "#/components/schemas/VenueOperatingSchedule",
+          },
+          closures: {
+            type: "array",
+            items: { $ref: "#/components/schemas/VenueClosure" },
+          },
+          pricing: { $ref: "#/components/schemas/VenuePricing" },
+          amenities: { type: "array", items: { type: "string" } },
+          status: {
+            type: "string",
+            enum: ["draft", "active", "inactive"],
+          },
+        },
       },
       BusinessVerificationSubmission: {
         type: "object",

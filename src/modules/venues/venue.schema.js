@@ -81,12 +81,6 @@ const venueSchema = new mongoose.Schema(
       },
     },
     location: { type: locationSchema, required: true },
-    timezone: {
-      type: String,
-      required: true,
-      trim: true,
-      default: "Asia/Kathmandu",
-    },
     operatingSchedule: {
       type: operatingScheduleSchema,
       required: true,

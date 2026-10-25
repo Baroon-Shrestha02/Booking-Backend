@@ -2,7 +2,14 @@ import multer from "multer";
 import AppError from "../../shared/errors/AppError.js";
 import { AUTH_ERROR_CODES } from "../../shared/constants/index.js";
 
-const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const allowedTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/jpg",
+  "image/heic",
+  "image/heif",
+]);
 
 const uploader = multer({
   storage: multer.memoryStorage(),

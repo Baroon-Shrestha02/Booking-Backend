@@ -154,9 +154,6 @@ const geoPointSchema = new mongoose.Schema(
 export const locationSchema = new mongoose.Schema(
   {
     address: { type: String, required: true, trim: true, maxlength: 250 },
-    area: { type: String, required: true, trim: true, maxlength: 100 },
-    city: { type: String, required: true, trim: true, maxlength: 100 },
-    landmark: { type: String, trim: true, maxlength: 160, default: null },
     coordinates: { type: geoPointSchema, required: true },
   },
   withoutIds,

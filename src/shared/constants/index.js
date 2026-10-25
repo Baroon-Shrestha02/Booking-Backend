@@ -35,6 +35,11 @@ export const VENUE_CLOSURE_TYPES = Object.freeze({
   DATE_RANGE: "date_range",
 });
 
+export const VENUE_AVAILABILITY_STATUSES = Object.freeze({
+  ACTIVE: "active",
+  CLOSED: "closed",
+});
+
 export const OTP_PURPOSES = Object.freeze({
   REGISTRATION: "registration",
   PASSWORD_RESET: "password_reset",
@@ -63,4 +68,10 @@ export const OWNER_ERROR_CODES = Object.freeze({
   BUSINESS_VERIFICATION_NOT_FOUND: "business_verification_not_found",
   BUSINESS_VERIFICATION_LOCKED: "business_verification_locked",
   DOCUMENT_UPLOAD_UNAVAILABLE: "document_upload_unavailable",
+});
+
+export const VENUE_ERROR_CODES = Object.freeze({
+  NOT_FOUND: "venue_not_found",
+  BUSINESS_NOT_APPROVED: "business_verification_not_approved",
+  IMAGE_UPLOAD_UNAVAILABLE: "venue_image_upload_unavailable",
 });

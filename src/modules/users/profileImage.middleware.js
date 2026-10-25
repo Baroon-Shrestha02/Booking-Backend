@@ -7,7 +7,6 @@ const allowedImageTypes = new Set([
   "image/png",
   "image/webp",
   "image/HEIC",
-  "image/HEIF",
   "image/avif",
   "image/heic",
   "image/heif",

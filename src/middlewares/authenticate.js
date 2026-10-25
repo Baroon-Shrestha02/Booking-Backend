@@ -15,7 +15,6 @@ const authenticate = async (req, _res, next) => {
         "A bearer token is required.",
       );
     }
-
     const claims = verifyAccessToken(token);
     const [session, user] = await Promise.all([
       findRefreshSessionByPublicId(claims.sid),
